@@ -1,0 +1,19 @@
+for i in {01..38}; do mkdir /common/collections/Analyses/TSC-RO1-HCP/Controls/Control0${i}/unprocessed/source/scan01; dcm2niix -o /common/collections/Analyses/TSC-RO1-HCP/Controls/Control0${i}/unprocessed/source/scan01 ./case0${i}/*/scan01/DICOM/*; done
+
+unpacksdcmdir -src mocoMEMPRAGE_FOV_220_RMS_7 -targ mocoMEMPRAGE_FOV_220_RMS_7/ -run 7 mocoMEMPRAGE_FOV_220_RMS_7 nii MPRAGE
+
+ls -x | sed 's/  \+/ /g'
+
+qap_anatomical_spatial.py --sublist ../ABIDE_BNI_anat.yml --with-reports ../qap_config_abideII_spatial.yml >> BNI.log &
+
+docker run --privileged -ti --rm -v /var/run/docker.sock:/var/run/docker.sock -v /home/ch186161/singularities:/output singularityware/docker2singularity bids/freesurfer
+
+docker run -it --entrypoint /bin/bash -v /common/collections/Analyses:/Analyses bids/cpac
+
+s3cmd get --recursive s3://fcp-indi/data/Projects/ABIDE/Outputs/freesurfer ABIDE-QAP
+
+docker run -ti --rm -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/ABIDEII-ONRC_2:/bids_dataset -v /common/collections/Analyses/ABIDE2/QAP/ONRC:/output alex/qap /bids_dataset /output participant --participant_label 28698
+
+docker run -it --rm -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/ABIDEII-ONRC_2:/bids_dataset -v /common/collections/Analyses/ABIDE2/QAP/ONRC:/outputs bidslocal/qap bash
+
+docker build -t alex/qap .
