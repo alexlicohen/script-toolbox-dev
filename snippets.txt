@@ -17,3 +17,5 @@ docker run -ti --rm -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/ABIDEII-ONR
 docker run -it --rm -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/ABIDEII-ONRC_2:/bids_dataset -v /common/collections/Analyses/ABIDE2/QAP/ONRC:/outputs bidslocal/qap bash
 
 docker build -t alex/qap .
+
+docker run -ti --rm -v /common/tsc/TSC-R01/Autism/RAW/Case001/BOLES_HUNTER/scan01/DICOM:/input -v /home_local/ch186161/projects:/output alex/dcm2niix -b y -z i -o /output /input/003_SAG_T1_MPRAGE_ipat_2_
