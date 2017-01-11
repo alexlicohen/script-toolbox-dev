@@ -2,7 +2,7 @@
 # set -x
 # Created by Alex Cohen to convert chosen files into BIDS formatted dirs.
 
-# g_subjects="010"
+# g_subjects="007"
 
 
 # Cases with at least a T1
@@ -29,7 +29,7 @@ labelprefix="Control"
 
 #################################################################
 
-log=${studydir}/ImportProcessing.log
+log=/tmp/ImportProcessing.log
 echo "Logging will be output to: $log"
 
 # for ad hoc testing/rerunning
@@ -38,18 +38,68 @@ if [ ! -z $1 ] ; then
 	g_subjects=$1
 fi
 
+ # base script
+dcm2niix_cmd="dcm2niix -b y -z y"
+# dcm2niix_cmd="docker run --user=4135:1003 -ti --rm \
+#                     -v ${session_sourcedir}:/input \
+#                     -v ${session_targetdir}:/output \
+#                     alex/dcm2niix -b y -z y"
+
+
+dcm2niix_CMD()
+{
+    sequence=`echo $sourcefile | awk -F[._] '{print $(NF-2)}'`
+                
+    # docker workaround
+    # dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*/scan0${session}/DICOM/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
+    dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
+    
+    dcm2niix_command="${dcm2niix_cmd}"
+    if [ -n "${multiple_runs}" ]; then
+        run_tag="_run-${run_number}"
+    else
+        run_tag=""
+    fi
+    target_filename="sub-${subject}_ses-${session}${task_label}${acq_label}${run_tag}_${file_type}"
+    dcm2niix_command="${dcm2niix_command} -f ${target_filename}"
+    dcm2niix_command="${dcm2niix_command} -o ${session_targetdir}/${folder_type}"
+    dcm2niix_command="${dcm2niix_command} ${session_sourcedir}/${dcmDIR}"
+    # dcm2niix_command="${dcm2niix_command} -o /output/anat"
+    # dcm2niix_command="${dcm2niix_command} /input/*/scan0${session}/DICOM/${dcmDIR}"
+
+    # run dcm2niix
+    if [ ! -e ${session_targetdir}/${folder_type}/${target_filename}.json ]; then
+        echo Running ${dcm2niix_command}
+        ${dcm2niix_command} >> ${log}
+        echo -e "ses-${session}/${folder_type}/${target_filename}.nii.gz\t${dcmDIR}" >> ${studydir}/sub-${subject}/sub-${subject}_scans.tsv
+    else
+        echo "Files already exist, moving on: ${session_targetdir}/${folder_type}/${target_filename}.json"
+    fi
+}
+
+
 run_dcm2niix()
 {
     subject=${1}
     echo -e "Starting work on: $subject"
     
+    mkdir --parents ${studydir}/sub-${subject}
+    if [ ! -e ${studydir}/sub-${subject}/sub-${subject}_scans.tsv ]; then
+        echo -e "filename\tsource_data" > ${studydir}/sub-${subject}/sub-${subject}_scans.tsv
+    fi
+
+
     # Determine which sessions are used
     subject_labeldir=${labeldir}/${labelprefix}${subject}/unprocessed/source
     sessions=`ls ${subject_labeldir} | awk -F[._] '{print $(NF-3)}' | sort | uniq`
 
     for session in ${sessions} ; do
         # set locations
+        
+        # workaround for weird docker behavior:
+        # session_sourcedir=${sourcedir}/${sourceprefix}${subject}
         session_sourcedir=${sourcedir}/${sourceprefix}${subject}/*/scan0${session}/DICOM
+        
         session_targetdir=${studydir}/sub-${subject}/ses-0${session}
         mkdir --parents ${session_targetdir}/anat
         mkdir --parents ${session_targetdir}/func
@@ -59,32 +109,100 @@ run_dcm2niix()
         T1s_that_are_MPRAGE=`ls ${subject_labeldir}/${labelprefix}${subject}_T1w_${session}* 2>/dev/null`
         T2s_that_are_Flair=`ls ${subject_labeldir}/${labelprefix}${subject}_T2w_Flair_${session}* 2>/dev/null`
         T2s_that_are_not_Flair=`ls ${subject_labeldir}/${labelprefix}${subject}_T2w_${session}* 2>/dev/null`
-
-        # base script
-        dcm2niix_cmd="dcm2niix -b y -z i"
-        # dcm2niix_cmd="docker run -ti --rm \
-        #                     -v ${session_sourcedir}:/input \
-        #                     -v ${session_targetdir}:/output \
-        #                     alex/dcm2niix -b y -z i"
+        fMRI_runs=`ls ${subject_labeldir}/${labelprefix}${subject}_fMRI_${session}* 2>/dev/null`
 
         if [ ! -z "${T1s_that_are_MEMPRAGE}" ]; then
-            for MEMPRAGE in ${T1s_that_are_MEMPRAGE} ; do
-                sequence=`echo $MEMPRAGE | awk -F[._] '{print $(NF-2)}'`
-                dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
-                
-                dcm2niix_CMD="${dcm2niix_cmd}"
-                dcm2niix_CMD="${dcm2niix_CMD} -f sub-${subject}_ses-${session}_acq-memprage_run-${sequence}_T1w"
-                dcm2niix_CMD="${dcm2niix_CMD} -o ${session_targetdir}/anat"
-                dcm2niix_CMD="${dcm2niix_CMD} ${session_sourcedir}/${dcmDIR}"
+            if [ `echo ${T1s_that_are_MEMPRAGE} | wc -w` -gt 1 ]; then
+                multiple_runs="True"
+                run_number=1
+            else
+                multiple_runs=""
+            fi
+            for sourcefile in ${T1s_that_are_MEMPRAGE} ; do
+                acq_label="_acq-memprage"
+                task_label=""
+                file_type="T1w"
+                folder_type="anat"
+                dcm2niix_CMD
+                ((run_number++))
             done
         fi
+
+        if [ ! -z "${T1s_that_are_MPRAGE}" ]; then
+            if [ `echo ${T1s_that_are_MPRAGE} | wc -w` -gt 1 ]; then
+                multiple_runs="True"
+                run_number=1
+            else
+                multiple_runs=""
+            fi
+            for sourcefile in ${T1s_that_are_MPRAGE} ; do
+                acq_label=""
+                task_label=""
+                file_type="T1w"
+                folder_type="anat"
+                dcm2niix_CMD
+                ((run_number++))
+            done
+        fi
+
+        if [ ! -z "${T2s_that_are_Flair}" ]; then
+            if [ `echo ${T2s_that_are_Flair} | wc -w` -gt 1 ]; then
+                multiple_runs="True"
+                run_number=1
+            else
+                multiple_runs=""
+            fi
+            for sourcefile in ${T2s_that_are_Flair} ; do
+                acq_label=""
+                task_label=""
+                file_type="T2w"
+                folder_type="anat"
+                dcm2niix_CMD
+                ((run_number++))
+            done
+        fi
+        
+        if [ ! -z "${T2s_that_are_not_Flair}" ]; then
+            if [ `echo ${T2s_that_are_not_Flair} | wc -w` -gt 1 ]; then
+                multiple_runs="True"
+                run_number=1
+            else
+                multiple_runs=""
+            fi
+            for sourcefile in ${T2s_that_are_not_Flair} ; do
+                acq_label=""
+                task_label=""
+                file_type="FLAIR"
+                folder_type="anat"
+                dcm2niix_CMD
+                ((run_number++))
+            done
+        fi
+
+        if [ ! -z "${fMRI_runs}" ]; then
+            if [ `echo ${fMRI_runs} | wc -w` -gt 1 ]; then
+                multiple_runs="True"
+                run_number=1
+            else
+                multiple_runs=""
+            fi
+            for sourcefile in ${fMRI_runs} ; do
+                acq_label=""
+                task_label="_task-rest"
+                file_type="bold"
+                folder_type="func"
+                dcm2niix_CMD
+                ((run_number++))
+            done
+        fi
+
+
+
     done
 
     printf "\n"
 
-    # run dcm2niix
-    echo Running ${dcm2niix_CMD}
-    ${dcm2niix_CMD} >> ${log}
+
 }
 
 main()
