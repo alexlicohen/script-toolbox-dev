@@ -19,3 +19,5 @@ docker run -it --rm -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/ABIDEII-ONR
 docker build -t alex/qap .
 
 docker run -ti --rm -v /common/tsc/TSC-R01/Autism/RAW/Case001/BOLES_HUNTER/scan01/DICOM:/input -v /home_local/ch186161/projects:/output alex/dcm2niix -b y -z i -o /output /input/003_SAG_T1_MPRAGE_ipat_2_
+
+docker run -ti --rm -v /Users/alex/projects/ABIDEII-BNI_1:/bids_dataset -v /Users/alex/projects:/output alex/freesurfer /bids_dataset /output participant --participant_label 30151 --license_key *CeHOEknNIs/I --refine_pial FLAIR --stages autorecon1 --n_cpus 6 --multiple_sessions multiday
