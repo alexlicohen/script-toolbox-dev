@@ -2,7 +2,7 @@
 # set -x
 # Created by Alex Cohen to convert chosen files into BIDS formatted dirs.
 
-# g_subjects="007"
+# g_subjects="019"
 
 
 # Cases with at least a T1
@@ -21,10 +21,16 @@ g_subjects="001 002 003 004 005 006 007 008 009 010 011 013 014 015 016 017 018 
 # Control001 Control002 Control003 Control004 Control005 Control006 Control007 Control008 Control009 Control010 Control011 Control013 Control014 Control015 Control016 Control017 \
 # Control018 Control019 Control021 Control022 Control023 Control024 Control025 Control028 Control032"
 
+# sourcedir=/common/tsc/TSC-R01/Autism/RAW
+# sourceprefix="Case"
+# labeldir=/common/collections/Analyses/TSC-R01/HCP
+# studydir=/common/collections/Analyses/TSC-R01-BIDS/Cases/sourcedata
+# labelprefix="Case"
+
 sourcedir=/common/tsc/TSC-R01/Controls/RAW
 sourceprefix="case"
-labeldir=/common/collections/Analyses/TSC-RO1-HCP
-studydir=/common/collections/Analyses/TSC-R01-BIDS/Controls
+labeldir=/common/collections/Analyses/TSC-R01/HCP
+studydir=/common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata
 labelprefix="Control"
 
 #################################################################
@@ -50,28 +56,33 @@ dcm2niix_CMD()
 {
     sequence=`echo $sourcefile | awk -F[._] '{print $(NF-2)}'`
                 
-    # docker workaround
-    # dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*/scan0${session}/DICOM/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
-    dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
     
     dcm2niix_command="${dcm2niix_cmd}"
     if [ -n "${multiple_runs}" ]; then
-        run_tag="_run-${run_number}"
+        run_tag="_run-0${run_number}"
     else
         run_tag=""
     fi
-    target_filename="sub-${subject}_ses-${session}${task_label}${acq_label}${run_tag}_${file_type}"
-    dcm2niix_command="${dcm2niix_command} -f ${target_filename}"
-    dcm2niix_command="${dcm2niix_command} -o ${session_targetdir}/${folder_type}"
-    dcm2niix_command="${dcm2niix_command} ${session_sourcedir}/${dcmDIR}"
+    target_filename="sub-${subject}_ses-0${session}${task_label}${acq_label}${run_tag}_${file_type}"
+    
     # dcm2niix_command="${dcm2niix_command} -o /output/anat"
     # dcm2niix_command="${dcm2niix_command} /input/*/scan0${session}/DICOM/${dcmDIR}"
 
     # run dcm2niix
     if [ ! -e ${session_targetdir}/${folder_type}/${target_filename}.json ]; then
+        
+        dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
+        dcm2niix_command="${dcm2niix_command} -f ${target_filename}"
+        dcm2niix_command="${dcm2niix_command} -o ${session_targetdir}/${folder_type}"
+        dcm2niix_command="${dcm2niix_command} ${session_sourcedir}/${dcmDIR}"
         echo Running ${dcm2niix_command}
         ${dcm2niix_command} >> ${log}
         echo -e "ses-${session}/${folder_type}/${target_filename}.nii.gz\t${dcmDIR}" >> ${studydir}/sub-${subject}/sub-${subject}_scans.tsv
+        if [ ${folder_type} == "func" ]; then
+            taskname=`echo ${task_label} | awk -F[-] '{print $(NF)}'`
+            jq '. + { "TaskName": "'"${taskname}"'" }' ${session_targetdir}/${folder_type}/${target_filename}.json > ${session_targetdir}/${folder_type}/temp.json
+            mv ${session_targetdir}/${folder_type}/temp.json ${session_targetdir}/${folder_type}/${target_filename}.json
+        fi
     else
         echo "Files already exist, moving on: ${session_targetdir}/${folder_type}/${target_filename}.json"
     fi
@@ -136,7 +147,7 @@ run_dcm2niix()
                 multiple_runs=""
             fi
             for sourcefile in ${T1s_that_are_MPRAGE} ; do
-                acq_label=""
+                acq_label="_acq-mprage"
                 task_label=""
                 file_type="T1w"
                 folder_type="anat"
@@ -155,7 +166,7 @@ run_dcm2niix()
             for sourcefile in ${T2s_that_are_Flair} ; do
                 acq_label=""
                 task_label=""
-                file_type="T2w"
+                file_type="FLAIR"
                 folder_type="anat"
                 dcm2niix_CMD
                 ((run_number++))
@@ -170,12 +181,28 @@ run_dcm2niix()
                 multiple_runs=""
             fi
             for sourcefile in ${T2s_that_are_not_Flair} ; do
-                acq_label=""
-                task_label=""
-                file_type="FLAIR"
-                folder_type="anat"
-                dcm2niix_CMD
-                ((run_number++))
+                if [ ! -z `echo ${sourcefile} | grep coronal` ]; then
+                    acq_label="_acq-coronal"
+                    task_label=""
+                    file_type="T2w"
+                    folder_type="anat"
+                    dcm2niix_CMD
+                    ((run_number++))
+                elif [ ! -z `echo ${sourcefile} | grep axial` ]; then
+                    acq_label="_acq-axial"
+                    task_label=""
+                    file_type="T2w"
+                    folder_type="anat"
+                    dcm2niix_CMD
+                    ((run_number++))
+                else
+                    acq_label=""
+                    task_label=""
+                    file_type="T2w"
+                    folder_type="anat"
+                    dcm2niix_CMD
+                    ((run_number++))
+                fi
             done
         fi
 
