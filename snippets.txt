@@ -22,4 +22,32 @@ docker run -ti --rm -v /common/tsc/TSC-R01/Autism/RAW/Case001/BOLES_HUNTER/scan0
 
 docker run -ti --rm --user=4135:1003 -v /Users/alex/projects/ABIDEII-BNI_1:/bids_dataset -v /Users/alex/projects:/output alex/freesurfer /bids_dataset /output participant --participant_label 30151 --license_key *CeHOEknNIs/I --refine_pial FLAIR --stages autorecon1 --n_cpus 6 --multiple_sessions multiday
 
-docker run -ti --rm --user=4135:1003 -v /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata:/bids_dataset -v /common/collections/Analyses/TSC-R01-BIDS/Controls/derivatives:/output alex/freesurfer /bids_dataset /output participant --participant_label 001 --license_key *CeHOEknNIs/I --refine_pial T2 --n_cpus 6 --multiple_sessions multiday --acquisition_label memprage
+docker run -ti --rm --user=4135:1003 -v /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata:/bids_dataset -v /common/collections/Analyses/TSC-R01-BIDS/Controls/derivatives:/output alex/freesurfer /bids_dataset /output participant --license_key *CeHOEknNIs/I --n_cpus 6 --multiple_sessions multiday --participant_label 001 --acquisition_label memprage --refine_pial T2
+
+docker run -ti --rm -v /home_local/ch186161/scratch_local:/tmp -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/ABIDEII-ONRC_2:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/QAP/ABIDEII-ONRC_2:/output alex_bids/qap --n_cpus 2 --mem 4 /bids_dataset /output participant --participant_label 28675 28695 28715 28676 28696 28716 28677 28697 28717 28678 28698 28718 28679 28699 28719 28680 28700 28720 28681 28701 28721 28682 28702 28722 28683 28703 28723 28684 28704 28724 28685 28705 28725 28686 28706 28726 28687 28707 28727 28688 28708 28728 28689 28709 28729 28690 28710 28730 28691 28711 28731 28692 28712 28732 28693 28713 28733 28714
+
+for i in ABIDEII-ETHZ_1; do docker run -ti --rm -v /home_local/ch186161/scratch_local:/tmp -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/${i}/:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/QAP/${i}/:/output alex_bids/qap --n_cpus 1 --mem 4 /bids_dataset /output participant; done
+
+
+
+docker run -ti --rm --user=4135:1003 -v /common/collections/Analyses/TSC-R01-BIDS/sourcedata/controls/:/bids_dataset -v /common/collections/Analyses/TSC-R01-BIDS/derivatives/controls/FS/:/output alex_bids/freesurfer /bids_dataset /output participant --license_key *CeHOEknNIs/I --n_cpus 6 --refine_pial T1only
+
+
+for i in ABIDEII-OHSU_1; do docker run -ti --rm -v /home_local/ch186161/scratch_local:/tmp -v /common/collections/ABIDE/ABIDE2-BIDS/RawData/${i}/:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/QAP/${i}/:/output alex_bids/qap --n_cpus 1 --mem 4 /bids_dataset /output participant; done
+
+/home/ch186161/opt/fsl/bin/flirt -in /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata/sub-001/ses-03/anat/sub-001_ses-03_acq-memprage_T1w.nii.gz -ref /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata/sub-001/ses-01/anat/sub-001_ses-01_acq-mprage_T1w.nii.gz -out /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata/sub-001/ses-03/anat/sub-001_ses-03_acq-memprage_req-resliced_T1w.nii.gz -omat /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata/sub-001/ses-03/anat/sub-001_ses-03_acq-memprage_req-resliced_T1w.mat -bins 256 -cost normcorr -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 7  -interp spline
+
+docker run -ti --rm --user=4135:1003 --entrypoint bash -v /common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata:/bids_dataset alex/freesurfer
+
+csvcut -c Participant,Session,Series,CNR,Qi1,SNR qap_anatomical_spatial.csv | csvlook
+
+for i in ABIDEII-ETHZ_1; do docker run -ti --rm --user=4135:1003 -v /common/collections/ABIDE/ABIDE2-BIDS/${i}/:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/freesurfer/${i}/:/output alex_bids/freesurfer /bids_dataset /output participant --license_key *CeHOEknNIs/I --n_cpus 2; done
+
+for i in ABIDEII-EMC_1; do docker run -ti --rm -v /home_local/ch186161/scratch_local:/tmp -v /common/collections/ABIDE/ABIDE2-BIDS/${i}/:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/CPAC/${i}/:/output bids/cpac /bids_dataset /output participant --n_cpus 4; done
+
+s3cmd sync --delete-removed s3://fcp-indi/data/Projects/ABIDE2/RawData/ /common/collections/ABIDE/ABIDE2-BIDS/
+s3cmd sync --delete-removed s3://fcp-indi/data/Projects/ABIDE/RawDataBIDS/ /common/collections/ABIDE/ABIDE-BIDS/
+
+docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY --entrypoint bash bids/cpac
+
+docker run -ti --rm --user=4135:1003 -v /common/collections/ABIDE/ABIDE2-BIDS/ABIDEII-BNI_1/:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/freesurfer/ABIDEII-BNI_1/:/output alex_bids/freesurfer /bids_dataset /output participant --license_key *CeHOEknNIs/I --n_cpus 2 --refine_pial T1only

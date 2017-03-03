@@ -24,13 +24,13 @@ g_subjects="001 002 003 004 005 006 007 008 009 010 011 013 014 015 016 017 018 
 # sourcedir=/common/tsc/TSC-R01/Autism/RAW
 # sourceprefix="Case"
 # labeldir=/common/collections/Analyses/TSC-R01/HCP
-# studydir=/common/collections/Analyses/TSC-R01-BIDS/Cases/sourcedata
+# studydir=/common/collections/Analyses/TSC-R01-BIDS/sourcedata/autism
 # labelprefix="Case"
 
 sourcedir=/common/tsc/TSC-R01/Controls/RAW
 sourceprefix="case"
 labeldir=/common/collections/Analyses/TSC-R01/HCP
-studydir=/common/collections/Analyses/TSC-R01-BIDS/Controls/sourcedata
+studydir=/common/collections/Analyses/TSC-R01-BIDS/sourcedata/controls
 labelprefix="Control"
 
 #################################################################
@@ -69,7 +69,7 @@ dcm2niix_CMD()
     # dcm2niix_command="${dcm2niix_command} /input/*/scan0${session}/DICOM/${dcmDIR}"
 
     # run dcm2niix
-    if [ ! -e ${session_targetdir}/${folder_type}/${target_filename}.json ]; then
+    if [ ! -e ${session_targetdir}/${folder_type}/sub-${subject}_ses-0${session}${task_label}${acq_label}*${run_tag}_${file_type}.json ]; then
         
         dcmDIR=`dcmdump --scan-directories --search 0020,0011 ${session_sourcedir}/*${sequence}* +Fs | grep -B 1 "\[${sequence}\]" | head -n 1 | awk -F[:/] '{print $(NF-1)}'`
         dcm2niix_command="${dcm2niix_command} -f ${target_filename}"
@@ -77,6 +77,15 @@ dcm2niix_CMD()
         dcm2niix_command="${dcm2niix_command} ${session_sourcedir}/${dcmDIR}"
         echo Running ${dcm2niix_command}
         ${dcm2niix_command} >> ${log}
+        
+        # adding resolution to acq tag
+        im_resolution=`fslinfo ${session_targetdir}/${folder_type}/${target_filename}.nii.gz | grep pixdim | head -3 | awk '{print $2}' | xargs printf "x%.1f" | cut -c 2- | sed 's/\.//g'`
+        # echo "im_resolution=fslinfo ${session_targetdir}/${folder_type}/${target_filename}.nii.gz | grep pixdim | head -3 | awk '{print $2}' | xargs printf "x%.1f" | cut -c 2-"
+        echo ${im_resolution}
+        mv ${session_targetdir}/${folder_type}/${target_filename}.nii.gz ${session_targetdir}/${folder_type}/sub-${subject}_ses-0${session}${task_label}${acq_label}${im_resolution}${run_tag}_${file_type}.nii.gz
+        mv ${session_targetdir}/${folder_type}/${target_filename}.json ${session_targetdir}/${folder_type}/sub-${subject}_ses-0${session}${task_label}${acq_label}${im_resolution}${run_tag}_${file_type}.json
+        target_filename="sub-${subject}_ses-0${session}${task_label}${acq_label}${im_resolution}${run_tag}_${file_type}"
+        echo "filename is now ${target_filename}"
         echo -e "ses-${session}/${folder_type}/${target_filename}.nii.gz\t${dcmDIR}" >> ${studydir}/sub-${subject}/sub-${subject}_scans.tsv
         if [ ${folder_type} == "func" ]; then
             taskname=`echo ${task_label} | awk -F[-] '{print $(NF)}'`
@@ -164,7 +173,7 @@ run_dcm2niix()
                 multiple_runs=""
             fi
             for sourcefile in ${T2s_that_are_Flair} ; do
-                acq_label=""
+                acq_label="_acq-"
                 task_label=""
                 file_type="FLAIR"
                 folder_type="anat"
@@ -196,7 +205,7 @@ run_dcm2niix()
                     dcm2niix_CMD
                     ((run_number++))
                 else
-                    acq_label=""
+                    acq_label="_acq-"
                     task_label=""
                     file_type="T2w"
                     folder_type="anat"
@@ -214,7 +223,7 @@ run_dcm2niix()
                 multiple_runs=""
             fi
             for sourcefile in ${fMRI_runs} ; do
-                acq_label=""
+                acq_label="_acq-"
                 task_label="_task-rest"
                 file_type="bold"
                 folder_type="func"
