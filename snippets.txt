@@ -51,3 +51,10 @@ s3cmd sync --delete-removed s3://fcp-indi/data/Projects/ABIDE/RawDataBIDS/ /comm
 docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=unix$DISPLAY --entrypoint bash bids/cpac
 
 docker run -ti --rm --user=4135:1003 -v /common/collections/ABIDE/ABIDE2-BIDS/ABIDEII-BNI_1/:/bids_dataset -v /common/collections/Analyses/ABIDE2-BIDS/derivatives/freesurfer/ABIDEII-BNI_1/:/output alex_bids/freesurfer /bids_dataset /output participant --license_key *CeHOEknNIs/I --n_cpus 2 --refine_pial T1only
+
+
+brew install socat
+socat TCP-LISTEN:6000,reuseaddr,fork UNIX-CLIENT:\"$DISPLAY\"
+ip=$(ifconfig en1 | grep inet | awk '$1=="inet" {print $2}')
+docker run -d -e DISPLAY=$ip:0 jess/firefox
+docker run -it --rm -e DISPLAY=$ip:0 --entrypoint bash -v ~/projects/ABIDEII-BNI_1/:/bids bids/base_fsl
